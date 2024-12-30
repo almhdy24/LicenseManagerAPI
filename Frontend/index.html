@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>License Manager UI</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- React and ReactDOM CDN -->
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <!-- Babel CDN for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100">
+
+<div id="root" class="container mx-auto p-4"></div>
+
+<script type="text/babel">
+
+const API_URL = 'http://localhost:8080';
+const SECRET_KEY = 'your_secret_key_here';
+
+const fetchOptions = (method, body = null) => ({
+    method,
+    headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': SECRET_KEY,
+    },
+    body: body ? JSON.stringify(body) : null,
+});
+
+const App = () => {
+    const [users, setUsers] = React.useState([]);
+    const [email, setEmail] = React.useState('');
+    const [licenseCode, setLicenseCode] = React.useState('');
+    const [message, setMessage] = React.useState('');
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const [newUser, setNewUser] = React.useState({ name: '', fullName: '', email: '', location: '', activation_status: 'active' });
+    const [editUser, setEditUser] = React.useState(null);
+    const [page, setPage] = React.useState(1);
+    const [perPage] = React.useState(10);
+    const [search, setSearch] = React.useState('');
+    const [applicationId, setApplicationId] = React.useState('');
+
+    const fetchUsers = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/users?page=${page}&perPage=${perPage}&search=${search}`, fetchOptions('GET'));
+            if (!response.ok) throw new Error('Failed to fetch users');
+            const data = await response.json();
+            setUsers(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const generateLicense = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/generate`, fetchOptions('POST', { email, application_id: applicationId }));
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message);
+            }
+            const data = await response.json();
+            setMessage(data.message);
+            if (data.license) setLicenseCode(data.license);
+            Swal.fire('Success', data.message, 'success');
+        } catch (err) {
+            setError(err.message);
+            Swal.fire('Error', err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const validateLicense = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/validate?code=${licenseCode}&application_id=${applicationId}`, fetchOptions('GET'));
+            if (!response.ok) throw new Error('Failed to validate license');
+            const data = await response.json();
+            setMessage(data.message || `License is ${data.valid ? 'valid' : 'invalid'}`);
+            Swal.fire('Validation Result', data.message || `License is ${data.valid ? 'valid' : 'invalid'}`, 'info');
+        } catch (err) {
+            setError(err.message);
+            Swal.fire('Error', err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const createUser = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/users`, fetchOptions('POST', newUser));
+            if (!response.ok) throw new Error('Failed to create user');
+            const data = await response.json();
+            if (data.errors) {
+                setMessage(data.errors.join(', '));
+                Swal.fire('Error', data.errors.join(', '), 'error');
+            } else {
+                setMessage('User created successfully');
+                fetchUsers();
+                Swal.fire('Success', 'User created successfully', 'success');
+            }
+        } catch (err) {
+            setError(err.message);
+            Swal.fire('Error', err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateUser = async (id) => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/users/${id}`, fetchOptions('PUT', editUser));
+            if (!response.ok) throw new Error('Failed to update user');
+            const data = await response.json();
+            if (data.errors) {
+                setMessage(data.errors.join(', '));
+                Swal.fire('Error', data.errors.join(', '), 'error');
+            } else {
+                setMessage('User updated successfully');
+                fetchUsers();
+                setEditUser(null);
+                Swal.fire('Success', 'User updated successfully', 'success');
+            }
+        } catch (err) {
+            setError(err.message);
+            Swal.fire('Error', err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteUser = async (id) => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${API_URL}/users/${id}`, fetchOptions('DELETE'));
+            if (!response.ok) throw new Error('Failed to delete user');
+            await response.json();
+            setMessage('User deleted successfully');
+            fetchUsers();
+            Swal.fire('Success', 'User deleted successfully', 'success');
+        } catch (err) {
+            setError(err.message);
+            Swal.fire('Error', err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = (e) => {
+        setSearch(e.target.value);
+    };
+
+    const handlePageChange = (newPage) => {
+        setPage(newPage);
+    };
+
+    const handleEditClick = (user) => {
+        setEditUser(user);
+    };
+
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+        setEditUser({ ...editUser, [name]: value });
+    };
+
+    React.useEffect(() => {
+        fetchUsers();
+    }, [page, search]);
+
+    return (
+        <div className="space-y-6">
+            <h1 className="text-2xl font-bold text-center">License Manager UI</h1>
+
+            <section className="bg-white p-4 rounded shadow-md">
+                <h2 className="text-xl font-semibold">Generate License</h2>
+                <input
+                    type="email"
+                    placeholder="Enter email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <input
+                    type="text"
+                    placeholder="Application ID"
+                    value={applicationId}
+                    onChange={(e) => setApplicationId(e.target.value)}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <button onClick={generateLicense} className="bg-blue-500 hover:bg-blue-700 text-white p-2 rounded">Generate</button>
+                {licenseCode && <p>License Code: {licenseCode}</p>}
+            </section>
+
+            <section className="bg-white p-4 rounded shadow-md">
+                <h2 className="text-xl font-semibold">Validate License</h2>
+                <input
+                    type="text"
+                    placeholder="Enter license code"
+                    value={licenseCode}
+                    onChange={(e) => setLicenseCode(e.target.value)}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <input
+                    type="text"
+                    placeholder="Application ID"
+                    value={applicationId}
+                    onChange={(e) => setApplicationId(e.target.value)}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <button onClick={validateLicense} className="bg-blue-500 hover:bg-blue-700 text-white p-2 rounded">Validate</button>
+            </section>
+
+            <section className="bg-white p-4 rounded shadow-md">
+                <h2 className="text-xl font-semibold">Create User</h2>
+                <input
+                    type="text"
+                    placeholder="Name"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <input
+                    type="text"
+                    placeholder="Full Name"
+                    value={newUser.fullName}
+                    onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <input
+                    type="email"
+                    placeholder="Email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <input
+                    type="text"
+                    placeholder="Location"
+                    value={newUser.location}
+                    onChange={(e) => setNewUser({ ...newUser, location: e.target.value })}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                <select
+                    value={newUser.activation_status}
+                    onChange={(e) => setNewUser({ ...newUser, activation_status: e.target.value })}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+                <button onClick={createUser} className="bg-green-500 hover:bg-green-700 text-white p-2 rounded">Create User</button>
+            </section>
+
+            <section className="bg-white p-4 rounded shadow-md">
+                <h2 className="text-xl font-semibold">Users</h2>
+                <input
+                    type="text"
+                    placeholder="Search users"
+                    value={search}
+                    onChange={handleSearch}
+                    className="border p-2 m-2 rounded w-full md:w-auto"
+                />
+                {loading ? (
+                    <p>Loading...</p>
+                ) : (
+                    <ul>
+                        {users.map((user) => (
+                            <li key={user.id} className="border-b p-2 flex justify-between items-center">
+                                <div>
+                                    {user.fullName} ({user.email}) - {user.activation_status}
+                                </div>
+                                <div className="flex space-x-2">
+                                    <button onClick={() => handleEditClick(user)} className="bg-yellow-500 hover:bg-yellow-700 text-white p-2 rounded">Edit</button>
+                                    <button onClick={() => deleteUser(user.id)} className="bg-red-500 hover:bg-red-700 text-white p-2 rounded">Delete</button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <div className="flex justify-between items-center mt-4">
+                    <button
+                        onClick={() => handlePageChange(page - 1)}
+                        disabled={page === 1}
+                        className="bg-gray-500 hover:bg-gray-700 text-white p-2 rounded"
+                    >
+                        Previous
+                    </button>
+                    <span>Page {page}</span>
+                    <button
+                        onClick={() => handlePageChange(page + 1)}
+                        className="bg-gray-500 hover:bg-gray-700 text-white p-2 rounded"
+                    >
+                        Next
+                    </button>
+                </div>
+            </section>
+
+            {editUser && (
+                <section className="bg-white p-4 rounded shadow-md">
+                    <h2 className="text-xl font-semibold">Edit User</h2>
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="Name"
+                        value={editUser.name}
+                        onChange={handleEditChange}
+                        className="border p-2 m-2 rounded w-full md:w-auto"
+                    />
+                    <input
+                        type="text"
+                        name="fullName"
+                        placeholder="Full Name"
+                        value={editUser.fullName}
+                        onChange={handleEditChange}
+                        className="border p-2 m-2 rounded w-full md:w-auto"
+                    />
+                    <input
+                        type="email"
+                        name="email"
+                        placeholder="Email"
+                        value={editUser.email}
+                        onChange={handleEditChange}
+                        className="border p-2 m-2 rounded w-full md:w-auto"
+                    />
+                    <input
+                        type="text"
+                        name="location"
+                        placeholder="Location"
+                        value={editUser.location}
+                        onChange={handleEditChange}
+                        className="border p-2 m-2 rounded w-full md:w-auto"
+                    />
+                    <select
+                        name="activation_status"
+                        value={editUser.activation_status}
+                        onChange={handleEditChange}
+                        className="border p-2 m-2 rounded w-full md:w-auto"
+                    >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                    <button onClick={() => updateUser(editUser.id)} className="bg-blue-500 hover:bg-blue-700 text-white p-2 rounded">Update User</button>
+                </section>
+            )}
+
+            {message && <p className="text-green-500">{message}</p>}
+            {error && <p className="text-red-500">{error}</p>}
+        </div>
+    );
+};
+
+ReactDOM.render(<App />, document.getElementById('root'));
+
+</script>
+</body>
+</html>
