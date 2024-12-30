@@ -46,7 +46,7 @@ LicenseManagerAPI enables secure generation and validation of software licenses,
 1. **Clone the Repository**:
     ```bash
     git clone https://github.com/almhdy24/LicenseManagerAPI.git
-    cd LicenseManagerAPI
+    cd LicenseManagerAPI/Backend
     ```
 
 2. **Install Dependencies**:
@@ -68,11 +68,11 @@ LicenseManagerAPI enables secure generation and validation of software licenses,
 
 1. **Navigate to the Project Directory**:
     ```bash
-    cd LicenseManagerAPI
+    cd ../Frontend
     ```
 
 2. **Open `index.html` in a Browser**:
-    Simply open the `index.html` file located in the root directory of the project in your preferred web browser.
+    Simply open the `index.html` file located in the `Frontend` directory in your preferred web browser.
 
 ## Usage
 
